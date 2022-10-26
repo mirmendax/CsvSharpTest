@@ -6,80 +6,16 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using CsvSharp;
+using CsvModels;
+
+
 
 
 namespace CsvSharpTest
 {
-    class ProductCsv
-    {
-        private static int LengthSku = 8;
-        public string sku_name { get; set; }
-        public string sku { get; set; }
-
-        public string code { get; set; }
-
-
-        public ProductCsv Trim()
-        {
-            sku_name = sku_name.Trim();
-            sku_name = sku_name.Replace("\"", string.Empty);
-            
-            sku = sku.Trim();
-            sku = sku.Replace("\\", string.Empty).Replace("\"", string.Empty);
-
-            code = code.Trim();
-            code = code.Replace("\"", string.Empty);
-
-            return this;
-        }
-
-        public bool TryParseNumber()
-        {
-            Trim();
-            
-            return int.TryParse(sku, out var _) && long.TryParse(code, out var _);
-        }
-
-        public string GetSku()
-        {
-            
-            if (int.TryParse(sku, out var result))
-            {
-                return result.ToString($"D{LengthSku}");
-            }
-            return sku;
-        }
-
-        public override bool Equals(object obj)
-        {
-            var o = obj as ProductCsv;
-            if (o==null) return false;
-
-            return (o.sku.Equals(sku) && o.code.Equals(code));
-        }
-
-        public override int GetHashCode()
-        {
-            var skuCode = sku.GetHashCode();
-            var codeCode = code.GetHashCode();
-            return skuCode ^ codeCode;
-        }
-
-        public override string ToString()
-        {
-            return $"Name: {sku_name}, Art: {GetSku()}, Code: {code}";
-        }
-    }
-
     internal class Program
     {
-        public static IEnumerable<IEnumerable<T>> Partition<T>(IEnumerable<T> instance, int partitionSize)
-        {
-            return instance
-                .Select((value, index) => new { Index = index, Value = value })
-                .GroupBy(i => i.Index / partitionSize)
-                .Select(i => i.Select(i2 => i2.Value));
-        }
+        
         
 
         static void Main(string[] args)
@@ -90,6 +26,7 @@ namespace CsvSharpTest
             var partTemp = args[1] ?? "50000";
             var separator = args[2] ?? ";";
             var head = args[3] ?? "false";
+            var isDistinctOnly = args[4] ?? "false";
             
             var skipHead = 0;
             if (head.Equals("true"))
@@ -126,10 +63,15 @@ namespace CsvSharpTest
             Console.WriteLine($"Products read {listProduct.Count()} count");
             var distinctList = listProduct.Distinct();
             Console.WriteLine($"Distincts products count: {distinctList.Count()}");
+
+            if (!isDistinctOnly.Equals("false"))
+            {
+                File.WriteAllText("distinctProduct.csv", CsvConvert.Serialize(distinctList, CultureInfo.InvariantCulture, separator));
+                ListNotPassedProcessing(listNotPassedLine);
+                return;
+            }
             
-            //var checkedDistinctProducts = distinctList.Where(item => item.TryParseNumber());
-            
-            var splitsList = Partition(distinctList, part);
+            var splitsList = distinctList.Partition(part);
             Console.WriteLine($"Parts: {splitsList.Count()}");
             var index2 = 1;
             foreach (var item in splitsList)
@@ -140,6 +82,13 @@ namespace CsvSharpTest
                 Console.WriteLine($"Created part: {fileName} rows: {item.Count()}");
             }
             Console.WriteLine(new string('=', 20));
+            ListNotPassedProcessing(listNotPassedLine);
+            Console.WriteLine("Done.");
+            Console.ReadLine();
+        }
+
+        private static void ListNotPassedProcessing(List<string> listNotPassedLine)
+        {
             if (listNotPassedLine.Count > 0)
             {
                 Console.WriteLine("Lines not parse sku and code to number {0}", listNotPassedLine.Count);
@@ -147,8 +96,6 @@ namespace CsvSharpTest
                 File.WriteAllLines(filenameNotPassed, listNotPassedLine.ToArray());
                 Console.WriteLine($"Saved not passed lines: {filenameNotPassed}");
             }
-            Console.WriteLine("Done.");
-            Console.ReadLine();
         }
     }
 }
